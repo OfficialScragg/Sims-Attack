@@ -9,3 +9,11 @@
 2025-06-11 22:24:27,032 - INFO - Connected to C2 server
 2025-06-11 22:25:20,204 - ERROR - websocket-client package not installed, only polling transport is available
 2025-06-11 22:25:20,568 - INFO - Connected to C2 server
+2025-06-11 22:27:50,186 - INFO - Disconnected from C2 server
+2025-06-11 22:31:10,369 - INFO - Connecting to C2 server at http://178.79.133.66:5000
+2025-06-11 22:31:10,740 - ERROR - websocket-client package not installed, only polling transport is available
+2025-06-11 22:31:11,094 - INFO - Connected to C2 server
+2025-06-11 22:31:11,096 - INFO - Registering with C2 server: {'id': '9078d809-4531-4ca2-b9c2-0d7a44111419', 'hostname': 'Danbook', 'ip': '192.168.3.35', 'os': 'Windows-10-10.0.22631-SP0', 'user': 'danie'}
+2025-06-11 22:31:11,478 - INFO - Successfully registered with C2 server
+2025-06-11 22:31:16,969 - INFO - Received command: whoami
+2025-06-11 22:31:31,184 - INFO - Received command: ipconfig

