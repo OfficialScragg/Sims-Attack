@@ -321,6 +321,47 @@ def handle_execute_command(data):
             'timestamp': datetime.now().isoformat()
         }, broadcast=True)
 
+@socketio.on('delete_implant')
+def handle_delete_implant(data):
+    """Handle implant deletion request"""
+    try:
+        implant_id = data.get('implant_id')
+        if not implant_id:
+            emit('implant_deleted', {
+                'status': 'error',
+                'message': 'No implant ID provided'
+            })
+            return
+
+        # Delete from database
+        conn = get_db()
+        conn.execute('DELETE FROM implants WHERE id = ?', (implant_id,))
+        conn.execute('DELETE FROM commands WHERE implant_id = ?', (implant_id,))
+        conn.commit()
+        conn.close()
+
+        # Remove from active implants
+        if implant_id in active_implants:
+            del active_implants[implant_id]
+        if implant_id in command_queues:
+            del command_queues[implant_id]
+
+        # Broadcast updates
+        emit('implants_update', active_implants, broadcast=True)
+        emit('implant_deleted', {
+            'status': 'success',
+            'implant_id': implant_id
+        })
+
+        logger.info(f"Implant {implant_id} deleted successfully")
+
+    except Exception as e:
+        logger.error(f"Error deleting implant: {e}")
+        emit('implant_deleted', {
+            'status': 'error',
+            'message': str(e)
+        })
+
 def check_implant_health():
     """Periodically check implant health"""
     while True:
