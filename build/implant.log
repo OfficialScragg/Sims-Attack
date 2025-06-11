@@ -1,0 +1,4 @@
+2025-06-11 22:15:04,233 - ERROR - websocket-client package not installed, only polling transport is available
+2025-06-11 22:15:04,600 - INFO - Connected to C2 server
+2025-06-11 22:21:59,837 - ERROR - websocket-client package not installed, only polling transport is available
+2025-06-11 22:22:00,198 - INFO - Connected to C2 server

