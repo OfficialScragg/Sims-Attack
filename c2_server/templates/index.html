@@ -57,6 +57,26 @@
             color: #6c757d;
             font-size: 0.8rem;
         }
+        .terminal-output {
+            border-radius: 4px;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        .terminal-output div {
+            margin: 2px 0;
+            word-wrap: break-word;
+        }
+        #commandInput {
+            background-color: #2d2d2d;
+            color: #fff;
+            border: 1px solid #444;
+        }
+        #commandInput:focus {
+            background-color: #2d2d2d;
+            color: #fff;
+            border-color: #666;
+            box-shadow: none;
+        }
     </style>
 </head>
 <body>
@@ -86,63 +106,15 @@
             <div class="col-md-8">
                 <div class="card">
                     <div class="card-header">
-                        <h5 class="card-title mb-0">Command Interface</h5>
+                        <h5 class="card-title mb-0">Terminal</h5>
                     </div>
                     <div class="card-body">
-                        <div id="selected-implant-info" class="mb-3">
-                            <p class="text-muted">Select an implant to execute commands</p>
+                        <div id="terminal" class="terminal-output" style="height: 400px; overflow-y: auto; background-color: #1e1e1e; color: #fff; font-family: 'Consolas', monospace; padding: 10px; white-space: pre-wrap;">
                         </div>
-                        
-                        <form id="command-form" class="mb-3">
+                        <div class="mt-3">
                             <div class="input-group">
-                                <input type="text" id="command-input" class="form-control" placeholder="Enter command...">
-                                <button type="submit" class="btn btn-primary">Execute</button>
-                            </div>
-                        </form>
-
-                        <!-- Quick Actions -->
-                        <div class="mb-3">
-                            <div class="btn-group">
-                                <button class="btn btn-secondary" id="take-screenshot">
-                                    <i class="fa fa-camera"></i> Take Screenshot
-                                </button>
-                                <button class="btn btn-secondary" id="spread-domain">
-                                    <i class="fa fa-share-alt"></i> Spread to Domain
-                                </button>
-                                <button class="btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                                    <i class="fa fa-file"></i> File Operations
-                                </button>
-                                <ul class="dropdown-menu">
-                                    <li><a class="dropdown-item" href="#" id="upload-file">Upload File</a></li>
-                                    <li><a class="dropdown-item" href="#" id="download-file">Download File</a></li>
-                                </ul>
-                            </div>
-                        </div>
-
-                        <!-- Command History -->
-                        <div class="card mb-3">
-                            <div class="card-header">
-                                <h6 class="mb-0">Command History</h6>
-                            </div>
-                            <div class="card-body">
-                                <div id="command-history" class="command-history">
-                                    <!-- Command history will be dynamically added here -->
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Command Output -->
-                        <div class="card">
-                            <div class="card-header">
-                                <h6 class="mb-0">Command Output</h6>
-                            </div>
-                            <div class="card-body">
-                                <div id="command-output" class="command-output">
-                                    <!-- Command output will be dynamically added here -->
-                                </div>
-                                <div id="screenshot-container" class="screenshot-container">
-                                    <!-- Screenshots will be displayed here -->
-                                </div>
+                                <input type="text" id="commandInput" class="form-control" placeholder="Enter command...">
+                                <button class="btn btn-primary" onclick="sendCommand()">Send</button>
                             </div>
                         </div>
                     </div>
@@ -353,24 +325,78 @@
             });
         }
 
-        // Handle command form submission
-        document.getElementById('command-form').addEventListener('submit', (e) => {
-            e.preventDefault();
+        // Terminal display functions
+        function appendToTerminal(text, type = 'output') {
+            const terminal = document.getElementById('terminal');
+            const timestamp = new Date().toLocaleTimeString();
+            const line = document.createElement('div');
             
-            if (!selectedImplantId) {
-                alert('Please select an implant first');
-                return;
+            if (type === 'command') {
+                line.innerHTML = `<span style="color: #00ff00;">[${timestamp}] $ </span><span style="color: #fff;">${text}</span>`;
+            } else if (type === 'error') {
+                line.innerHTML = `<span style="color: #ff0000;">[${timestamp}] Error: ${text}</span>`;
+            } else {
+                line.innerHTML = `<span style="color: #888;">[${timestamp}] ${text}</span>`;
             }
+            
+            terminal.appendChild(line);
+            terminal.scrollTop = terminal.scrollHeight;
+        }
 
-            const commandInput = document.getElementById('command-input');
+        // Update command handling
+        function sendCommand() {
+            const commandInput = document.getElementById('commandInput');
             const command = commandInput.value.trim();
             
-            if (command) {
-                socket.emit('execute_command', {
-                    implant_id: selectedImplantId,
-                    command: command
-                });
-                commandInput.value = '';
+            if (!command) return;
+            
+            const selectedImplant = document.querySelector('.implant-card.selected');
+            if (!selectedImplant) {
+                appendToTerminal('No implant selected', 'error');
+                return;
+            }
+            
+            const implantId = selectedImplant.dataset.implantId;
+            
+            // Display command in terminal
+            appendToTerminal(command, 'command');
+            
+            // Send command to server
+            socket.emit('command', {
+                implant_id: implantId,
+                command: command
+            });
+            
+            commandInput.value = '';
+        }
+
+        // Handle command results
+        socket.on('command_result', function(data) {
+            if (data.result) {
+                appendToTerminal(data.result);
+            }
+        });
+
+        // Handle connection status
+        socket.on('implant_connected', function(data) {
+            appendToTerminal(`Implant ${data.id} connected`, 'output');
+            updateImplantList();
+        });
+
+        socket.on('implant_disconnected', function(data) {
+            appendToTerminal(`Implant ${data.id} disconnected`, 'output');
+            updateImplantList();
+        });
+
+        // Handle errors
+        socket.on('error', function(data) {
+            appendToTerminal(data.message, 'error');
+        });
+
+        // Add enter key support for command input
+        document.getElementById('commandInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendCommand();
             }
         });
 
@@ -423,7 +449,7 @@
             const domainPassword = document.getElementById('domain-password').value;
             
             if (!domainUser || !domainPassword) {
-                appendCommandOutput('Error: Domain credentials required');
+                appendToTerminal('Error: Domain credentials required', 'error');
                 return;
             }
 
@@ -441,11 +467,11 @@
             })
             .then(response => response.json())
             .then(data => {
-                appendCommandOutput('Domain spread initiated...');
+                appendToTerminal('Domain spread initiated...', 'output');
                 bootstrap.Modal.getInstance(document.getElementById('spread-modal')).hide();
             })
             .catch(error => {
-                appendCommandOutput(`Error: ${error.message}`);
+                appendToTerminal(`Error: ${error.message}`, 'error');
             });
         });
     </script>

